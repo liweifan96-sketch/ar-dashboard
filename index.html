@@ -412,7 +412,13 @@ async function fetchCSV(url) {
   try {
     const proxy='https://api.allorigins.win/get?url='+encodeURIComponent(u);
     const r=await fetch(proxy,{cache:'no-cache'});
-    if(r.ok){const d=await r.json();if(d&&d.contents&&d.contents.trim().length>5) return {ok:true,text:d.contents};}
+    if(r.ok){
+      const d=await r.json();
+      const txt=d&&d.contents?d.contents.trim():'';
+      // Reject if it looks like HTML (login page redirect)
+      if(txt&&txt.length>5&&!txt.toLowerCase().startsWith('<!doctype')&&!txt.toLowerCase().startsWith('<html'))
+        return {ok:true,text:txt};
+    }
   } catch(e){}
   return {ok:false,error:'无法读取，请检查Google Sheets是否已发布为CSV'};
 }
