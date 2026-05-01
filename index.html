@@ -370,7 +370,9 @@ function parseCSV(text){
 function colV(row,...keys){
   for(const k of keys){
     const lk=k.toLowerCase().replace(/\s+/g,'');
-    for(const rk of Object.keys(row)){if(rk===lk) return row[rk]||'';}
+    for(const rk of Object.keys(row)){
+      if(rk.toLowerCase().replace(/\s+/g,'')=== lk) return row[rk]||'';
+    }
   }
   return '';
 }
