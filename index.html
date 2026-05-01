@@ -403,24 +403,17 @@ async function fetchCSV(url) {
   if(!url||!url.trim()) return null;
   let u=url.trim();
   if(!u.includes('output=csv')) u+=(u.includes('?')?'&':'?')+'output=csv';
-  // Direct fetch first
   try {
     const r=await fetch(u,{cache:'no-cache',credentials:'omit'});
-    if(r.ok){const t=await r.text();if(t&&t.trim().length>5) return {ok:true,text:t};}
-  } catch(e){}
-  // Fallback: allorigins proxy
-  try {
-    const proxy='https://api.allorigins.win/get?url='+encodeURIComponent(u);
-    const r=await fetch(proxy,{cache:'no-cache'});
-    if(r.ok){
-      const d=await r.json();
-      const txt=d&&d.contents?d.contents.trim():'';
-      // Reject if it looks like HTML (login page redirect)
-      if(txt&&txt.length>5&&!txt.toLowerCase().startsWith('<!doctype')&&!txt.toLowerCase().startsWith('<html'))
-        return {ok:true,text:txt};
-    }
-  } catch(e){}
-  return {ok:false,error:'无法读取，请检查Google Sheets是否已发布为CSV'};
+    if(!r.ok) return {ok:false,error:'HTTP '+r.status};
+    const t=await r.text();
+    if(!t||t.trim().length<5) return {ok:false,error:'内容为空'};
+    if(t.trim().toLowerCase().startsWith('<!doctype')||t.trim().toLowerCase().startsWith('<html'))
+      return {ok:false,error:'Google Sheets返回了登录页，请确认已正确发布为CSV'};
+    return {ok:true,text:t};
+  } catch(e){
+    return {ok:false,error:'网络错误: '+e.message};
+  }
 }
 
 // ─── SYNC ─────────────────────────────────────────────────────────────────────
