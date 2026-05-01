@@ -428,8 +428,11 @@ async function syncData(){
   let ok=0; const fails=[];
   if(urlS){
     const res=await fetchCSV(urlS);
-    if(res&&res.ok){const rows=parseCSV(res.text);if(rows.length){rows.forEach(r=>salesDB.push(mapSalesRow(r,colV(r,'门店','store','branch')||'悉尼')));ok++;}else fails.push('销售表无数据行');}
-    else fails.push('销售：'+(res?res.error:'失败'));
+    if(res&&res.ok){
+      const rows=parseCSV(res.text);
+      if(rows.length){rows.forEach(r=>salesDB.push(mapSalesRow(r,colV(r,'门店','store','branch')||'悉尼')));ok++;}
+      else fails.push('销售表无数据行');
+    }else fails.push('销售：'+(res?res.error:'失败'));
   }
   if(urlR){
     const res=await fetchCSV(urlR);
