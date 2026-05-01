@@ -1,0 +1,572 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>应收账款周报</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=DM+Mono:wght@400;500&family=Noto+Sans+SC:wght@400;500;700&display=swap" rel="stylesheet">
+<script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.js"></script>
+<style>
+:root{
+  --bg:#f0f2f6;--surface:#fff;--surface2:#e8eaf0;
+  --border:rgba(0,0,0,0.10);--border2:rgba(0,0,0,0.18);
+  --text:#111827;--text2:#374151;--text3:#6b7280;
+  --accent:#2563eb;--red:#dc2626;--orange:#c2620a;--green:#16a34a;--yellow:#b45309;
+  --syd:#2563eb;--bne:#c2620a;--per:#7c3aed;
+  --mono:'DM Mono',monospace;--sans:'Noto Sans SC',sans-serif;
+}
+*{box-sizing:border-box;margin:0;padding:0}
+body{font-family:var(--sans);background:var(--bg);color:var(--text);min-height:100vh;font-size:13px;font-weight:500}
+.shell{display:grid;grid-template-columns:200px 1fr;min-height:100vh}
+.sidebar{background:#eef0f5;border-right:0.5px solid var(--border);position:sticky;top:0;height:100vh;overflow-y:auto;display:flex;flex-direction:column}
+.main{overflow:hidden}
+.logo{padding:20px 18px 16px;border-bottom:0.5px solid var(--border)}
+.logo-mark{font-family:var(--mono);font-size:10px;color:var(--accent);letter-spacing:2px;text-transform:uppercase}
+.logo-name{font-size:14px;font-weight:700;margin-top:4px}
+.nav{padding:12px 0;flex:1}
+.nav-section{padding:6px 18px 2px;font-family:var(--mono);font-size:9px;color:var(--text3);letter-spacing:1.5px;text-transform:uppercase}
+.nav-item{display:flex;align-items:center;gap:8px;padding:8px 18px;cursor:pointer;color:var(--text2);font-size:13px;font-weight:500;transition:all .15s;border-left:2px solid transparent}
+.nav-item:hover{color:var(--text);background:rgba(0,0,0,0.04)}
+.nav-item.active{color:var(--accent);background:rgba(37,99,235,0.08);border-left-color:var(--accent)}
+.nav-dot{width:7px;height:7px;border-radius:50%;flex-shrink:0}
+.store-filter{padding:12px 18px;border-top:0.5px solid var(--border)}
+.store-filter-label{font-family:var(--mono);font-size:9px;color:var(--text3);letter-spacing:1.5px;text-transform:uppercase;margin-bottom:8px}
+.store-btn{display:block;width:100%;text-align:left;padding:6px 10px;border-radius:5px;border:0.5px solid var(--border);background:transparent;color:var(--text2);font-size:12px;font-weight:500;font-family:var(--sans);cursor:pointer;margin-bottom:4px;transition:all .15s}
+.store-btn:hover{background:rgba(0,0,0,0.05);color:var(--text)}
+.store-btn.active{color:var(--text);border-color:var(--border2);background:var(--surface2)}
+.store-btn .dot{display:inline-block;width:7px;height:7px;border-radius:50%;margin-right:6px;vertical-align:middle}
+.last-update{padding:10px 18px 14px;font-family:var(--mono);font-size:9px;color:var(--text3)}
+.topbar{padding:14px 24px;border-bottom:0.5px solid var(--border);display:flex;justify-content:space-between;align-items:center;background:#fff}
+.topbar-title{font-size:14px;font-weight:700}
+.topbar-sub{font-family:var(--mono);font-size:10px;color:var(--text3);margin-top:2px}
+.sync-btn{font-family:var(--mono);font-size:10px;padding:5px 12px;border:0.5px solid var(--border2);border-radius:5px;background:transparent;color:var(--text2);cursor:pointer;transition:all .15s}
+.sync-btn:hover{background:rgba(0,0,0,0.05);color:var(--text)}
+.sync-btn.loading{color:var(--accent);border-color:var(--accent)}
+.content{padding:20px 24px}
+.pane{display:none}.pane.active{display:block}
+.metrics{display:grid;grid-template-columns:repeat(4,1fr);gap:10px;margin-bottom:18px}
+.metric-card{background:var(--surface);border:0.5px solid var(--border);border-radius:8px;padding:14px 16px;position:relative;overflow:hidden}
+.metric-card::before{content:'';position:absolute;top:0;left:0;right:0;height:3px}
+.metric-card.c-red::before{background:var(--red)}.metric-card.c-orange::before{background:var(--orange)}
+.metric-card.c-green::before{background:var(--green)}.metric-card.c-blue::before{background:var(--accent)}
+.metric-label{font-size:10px;font-weight:600;color:var(--text2);text-transform:uppercase;letter-spacing:.5px;margin-bottom:8px}
+.metric-val{font-family:var(--mono);font-size:20px;font-weight:600}
+.metric-val.red{color:var(--red)}.metric-val.orange{color:var(--orange)}.metric-val.green{color:var(--green)}
+.metric-sub{font-size:10px;color:var(--text3);margin-top:4px}
+.sec-title{font-size:11px;font-weight:700;color:var(--text2);letter-spacing:.5px;text-transform:uppercase;margin-bottom:10px}
+.two-col{display:grid;grid-template-columns:1fr 1fr;gap:14px;margin-bottom:18px}
+.card{background:var(--surface);border:0.5px solid var(--border);border-radius:8px;padding:16px}
+.table-wrap{overflow-x:auto}
+table{width:100%;border-collapse:collapse;font-size:12px}
+th{padding:7px 10px;font-size:11px;font-weight:700;color:var(--text2);border-bottom:1px solid var(--border);white-space:nowrap;text-align:left;background:#f8f9fc}
+td{padding:7px 10px;border-bottom:0.5px solid var(--border);vertical-align:middle;color:var(--text2);font-weight:500}
+td.primary{color:var(--text);font-weight:600}
+tr:last-child td{border-bottom:none}
+tr:hover td{background:rgba(0,0,0,0.02)}
+tr.suspended td{opacity:.4;text-decoration:line-through}
+.badge{display:inline-block;padding:2px 7px;border-radius:3px;font-family:var(--mono);font-size:10px;font-weight:600;white-space:nowrap}
+.badge-red{background:#fee2e2;color:#b91c1c}.badge-orange{background:#ffedd5;color:#9a3412}
+.badge-green{background:#dcfce7;color:#15803d}.badge-gray{background:#f1f5f9;color:var(--text2)}
+.badge-blue{background:#dbeafe;color:#1d4ed8}.badge-purple{background:#ede9fe;color:#6d28d9}
+.badge-muted{background:#f1f5f9;color:var(--text3);opacity:.6}
+.store-tag{display:inline-block;padding:2px 7px;border-radius:3px;font-family:var(--mono);font-size:10px;font-weight:600}
+.syd{background:#dbeafe;color:#1d4ed8}.per{background:#ede9fe;color:#6d28d9}.bne{background:#ffedd5;color:#9a3412}
+.rank-row{display:flex;align-items:center;gap:8px;padding:6px 0;border-bottom:0.5px solid var(--border)}
+.rank-row:last-child{border-bottom:none}
+.rank-name{flex:0 0 90px;font-size:12px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.rank-bar-bg{flex:1;height:4px;background:rgba(0,0,0,0.06);border-radius:2px;overflow:hidden}
+.rank-bar-fill{height:4px;border-radius:2px}
+.rank-amt{flex:0 0 90px;text-align:right;font-family:var(--mono);font-size:11px;color:var(--text2)}
+.chart-wrap{position:relative;width:100%;height:160px}
+.fbar{display:flex;gap:8px;flex-wrap:wrap;align-items:center;margin-bottom:12px;padding:8px 12px;background:var(--surface2);border-radius:7px;border:0.5px solid var(--border)}
+.fbar label{font-size:11px;font-weight:600;color:var(--text2)}
+.fbar select{font-size:12px;padding:4px 8px;border:0.5px solid var(--border2);border-radius:5px;background:var(--surface);color:var(--text);font-family:var(--sans);height:28px}
+.result-count{font-size:12px;font-weight:600;color:var(--text2);margin-bottom:8px}
+.empty{padding:40px;text-align:center;color:var(--text3);font-size:12px}
+.empty-icon{font-size:28px;margin-bottom:8px;opacity:.4}
+.status-dot{display:inline-block;width:7px;height:7px;border-radius:50%;margin-right:4px;vertical-align:middle}
+.dot-ok{background:var(--green)}.dot-err{background:var(--red)}.dot-warn{background:var(--yellow)}
+@keyframes spin{to{transform:rotate(360deg)}}
+.spinner{display:inline-block;width:12px;height:12px;border:1.5px solid rgba(0,0,0,0.15);border-top-color:var(--accent);border-radius:50%;animation:spin .6s linear infinite;vertical-align:middle;margin-right:4px}
+.setup-grid{display:grid;grid-template-columns:1fr 1fr;gap:16px}
+.setup-card{background:var(--surface);border:0.5px solid var(--border);border-radius:8px;padding:16px}
+.setup-card h3{font-size:13px;font-weight:700;margin-bottom:6px}
+.setup-card p{font-size:11px;color:var(--text2);margin-bottom:10px;line-height:1.6}
+.url-input{width:100%;background:var(--surface2);border:0.5px solid var(--border2);border-radius:5px;padding:7px 10px;color:var(--text);font-family:var(--mono);font-size:11px;margin-bottom:6px}
+.url-input:focus{outline:none;border-color:var(--accent)}
+.url-hint{font-size:10px;margin-top:2px;min-height:14px;font-family:var(--mono)}
+.step-list{list-style:none;counter-reset:steps}
+.step-list li{counter-increment:steps;padding:6px 0 6px 28px;position:relative;font-size:11px;color:var(--text2);border-bottom:0.5px solid var(--border);line-height:1.5}
+.step-list li:last-child{border-bottom:none}
+.step-list li::before{content:counter(steps);position:absolute;left:0;top:6px;width:18px;height:18px;background:rgba(37,99,235,0.12);color:var(--accent);border-radius:50%;display:flex;align-items:center;justify-content:center;font-family:var(--mono);font-size:10px;font-weight:600}
+.step-list li b{color:var(--text)}
+.notice{background:rgba(37,99,235,0.07);border:0.5px solid rgba(37,99,235,0.2);border-radius:6px;padding:10px 12px;font-size:11px;color:var(--text2);line-height:1.6;margin-top:10px}
+.btn-row{display:flex;gap:8px;margin-top:10px;flex-wrap:wrap}
+.btn{padding:6px 14px;border-radius:5px;font-size:12px;cursor:pointer;font-family:var(--sans);font-weight:500;transition:all .15s;border:0.5px solid var(--border2);background:transparent;color:var(--text2)}
+.btn:hover{background:rgba(0,0,0,0.05);color:var(--text)}
+.btn.primary{background:var(--accent);color:#fff;border-color:var(--accent)}
+.btn.primary:hover{opacity:.9}
+</style>
+</head>
+<body>
+<div class="shell">
+  <aside class="sidebar">
+    <div class="logo">
+      <div class="logo-mark">AR · Weekly</div>
+      <div class="logo-name">应收账款周报</div>
+    </div>
+    <nav class="nav">
+      <div class="nav-section">报表</div>
+      <div class="nav-item active" onclick="switchTab('overview')"><div class="nav-dot" style="background:var(--accent)"></div>汇总总览</div>
+      <div class="nav-item" onclick="switchTab('sales-paid')"><div class="nav-dot" style="background:var(--red)"></div>销售·已收定金</div>
+      <div class="nav-item" onclick="switchTab('sales-nopay')"><div class="nav-dot" style="background:var(--text3)"></div>销售·未收定金</div>
+      <div class="nav-item" onclick="switchTab('rental')"><div class="nav-dot" style="background:var(--orange)"></div>租赁单</div>
+      <div class="nav-section" style="margin-top:8px">系统</div>
+      <div class="nav-item" onclick="switchTab('setup')"><div class="nav-dot" style="background:var(--text3)"></div>数据源配置</div>
+    </nav>
+    <div class="store-filter">
+      <div class="store-filter-label">门店筛选</div>
+      <button class="store-btn active" onclick="setStore('')" id="store-all"><span class="dot" style="background:var(--text2)"></span>全部门店</button>
+      <button class="store-btn" onclick="setStore('悉尼')" id="store-悉尼"><span class="dot" style="background:var(--syd)"></span>悉尼</button>
+      <button class="store-btn" onclick="setStore('布里斯班')" id="store-布里斯班"><span class="dot" style="background:var(--bne)"></span>布里斯班</button>
+      <button class="store-btn" onclick="setStore('珀斯')" id="store-珀斯"><span class="dot" style="background:var(--per)"></span>珀斯</button>
+    </div>
+    <div class="last-update" id="last-update-label">尚未加载数据</div>
+  </aside>
+
+  <div class="main">
+    <div class="topbar">
+      <div>
+        <div class="topbar-title" id="pane-title">汇总总览</div>
+        <div class="topbar-sub" id="today-sub"></div>
+      </div>
+      <div style="display:flex;gap:8px;align-items:center">
+        <span id="conn-status"></span>
+        <button class="sync-btn" id="sync-btn" onclick="syncData()">↻ 同步数据</button>
+      </div>
+    </div>
+
+    <div class="content">
+      <!-- OVERVIEW -->
+      <div class="pane active" id="tab-overview">
+        <div class="metrics">
+          <div class="metric-card c-red"><div class="metric-label">销售应收（已收定金）</div><div class="metric-val" id="m-sp">—</div><div class="metric-sub">已收定金单据</div></div>
+          <div class="metric-card c-orange"><div class="metric-label">销售（未收定金）</div><div class="metric-val" id="m-sn">—</div><div class="metric-sub">提前建单</div></div>
+          <div class="metric-card c-orange"><div class="metric-label">租赁应收</div><div class="metric-val" id="m-rn">—</div><div class="metric-sub">开票未回款</div></div>
+          <div class="metric-card c-red"><div class="metric-label">≥90天预警</div><div class="metric-val red" id="m-over">—</div><div class="metric-sub">销售+租赁合计</div></div>
+        </div>
+        <div class="two-col">
+          <div class="card"><div class="sec-title">销售人员应收排名</div><div id="ov-rank"><div class="empty">暂无数据</div></div></div>
+          <div class="card"><div class="sec-title">账龄分布 · 销售单（已收定金）</div><div class="chart-wrap"><canvas id="agingChartSales"></canvas></div></div>
+        </div>
+        <div class="card" style="margin-bottom:18px">
+          <div class="sec-title">账龄分布 · 租赁单</div>
+          <div class="chart-wrap" style="height:130px"><canvas id="agingChartRental"></canvas></div>
+        </div>
+        <div class="card"><div class="sec-title">重点预警 · 账龄≥60天</div><div class="table-wrap" id="ov-warn"><div class="empty">暂无数据</div></div></div>
+      </div>
+
+      <!-- SALES PAID -->
+      <div class="pane" id="tab-sales-paid">
+        <div class="fbar">
+          <label>销售:</label>
+          <select id="sp-rep" onchange="renderSalesPaid()"><option value="">全部</option></select>
+          <label>账龄:</label>
+          <select id="sp-age" onchange="renderSalesPaid()">
+            <option value="">全部</option><option value="90">≥90天</option>
+            <option value="60">60-89天</option><option value="30">30-59天</option><option value="0">&lt;30天</option>
+          </select>
+          <label style="display:flex;align-items:center;gap:4px;cursor:pointer">
+            <input type="checkbox" id="sp-show-suspended" onchange="renderSalesPaid()">显示挂起单据
+          </label>
+        </div>
+        <div class="result-count" id="sp-count"></div>
+        <div class="table-wrap" id="sp-table"><div class="empty"><div class="empty-icon">📋</div>请先同步数据</div></div>
+      </div>
+
+      <!-- SALES NOPAY -->
+      <div class="pane" id="tab-sales-nopay">
+        <p style="font-size:11px;color:var(--text3);margin-bottom:10px">▸ 提前建单、尚未收取定金，仅供查阅，不做账龄预警</p>
+        <div class="fbar">
+          <label>销售:</label>
+          <select id="sn-rep" onchange="renderSalesNopay()"><option value="">全部</option></select>
+        </div>
+        <div class="result-count" id="sn-count"></div>
+        <div class="table-wrap" id="sn-table"><div class="empty"><div class="empty-icon">📋</div>请先同步数据</div></div>
+      </div>
+
+      <!-- RENTAL -->
+      <div class="pane" id="tab-rental">
+        <div class="fbar">
+          <label>销售:</label>
+          <select id="rn-rep" onchange="renderRental()"><option value="">全部</option></select>
+          <label>账龄:</label>
+          <select id="rn-age" onchange="renderRental()">
+            <option value="">全部</option><option value="90">≥90天</option>
+            <option value="60">60-89天</option><option value="30">30-59天</option><option value="0">&lt;30天</option>
+          </select>
+        </div>
+        <div class="result-count" id="rn-count"></div>
+        <div class="table-wrap" id="rn-table"><div class="empty"><div class="empty-icon">📋</div>请先同步数据</div></div>
+      </div>
+
+      <!-- SETUP -->
+      <div class="pane" id="tab-setup">
+        <div class="setup-grid">
+          <div class="setup-card">
+            <h3>数据源说明</h3>
+            <p>两个独立的 Google Sheets 文件，链接已内置在代码中，自动同步。</p>
+            <ol class="step-list">
+              <li>销售表和租赁表各一个独立 Google Sheets 文件</li>
+              <li>表头：Invoice Number / Invoice Date / Customer Company / Customer / Sales Rep / Total Amount / Total Amount Paid / Balance Amount / Deposit Date / 备注 / <b>门店</b></li>
+              <li>"门店"列填：<b>悉尼 / 布里斯班 / 珀斯</b></li>
+              <li>备注填 <b>[挂起]</b> 可将该单从应收合计中剔除</li>
+              <li>更新数据后点右上角"↻ 同步数据"即可</li>
+            </ol>
+            <div class="notice">链接直接写在代码里，任何人打开都自动同步，不依赖浏览器缓存</div>
+          </div>
+          <div class="setup-card">
+            <h3>手动覆盖链接（可选）</h3>
+            <p style="margin-bottom:8px;font-size:11px;color:var(--text3)">如需临时使用其他链接，填入后点保存。留空则使用内置默认链接。</p>
+            <div style="margin-bottom:8px">
+              <div style="font-size:11px;font-weight:600;color:var(--text2);margin-bottom:3px">销售数据链接</div>
+              <div style="display:flex;gap:6px;align-items:center">
+                <input class="url-input" id="url-sales" type="text" placeholder="留空使用内置链接" style="flex:1;margin-bottom:0">
+                <button class="btn" onclick="testSingleUrl('sales')" style="white-space:nowrap;flex-shrink:0">测试</button>
+              </div>
+              <div class="url-hint" id="hint-sales"></div>
+            </div>
+            <div style="margin-bottom:12px">
+              <div style="font-size:11px;font-weight:600;color:var(--text2);margin-bottom:3px">租赁数据链接</div>
+              <div style="display:flex;gap:6px;align-items:center">
+                <input class="url-input" id="url-rental" type="text" placeholder="留空使用内置链接" style="flex:1;margin-bottom:0">
+                <button class="btn" onclick="testSingleUrl('rental')" style="white-space:nowrap;flex-shrink:0">测试</button>
+              </div>
+              <div class="url-hint" id="hint-rental"></div>
+            </div>
+            <div class="btn-row">
+              <button class="btn primary" onclick="saveAndSync()">保存并同步</button>
+              <button class="btn" onclick="loadDemoData();switchTab('overview')">查看演示数据</button>
+              <button class="btn" onclick="clearAllUrls()" style="color:#dc2626;border-color:#fca5a5">清除重置</button>
+            </div>
+            <div id="setup-msg" style="margin-top:8px;font-size:11px;color:var(--text2);line-height:1.7"></div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<script>
+// ─── 硬编码数据源链接（任何人打开都自动同步）────────────────────────────────
+const DEFAULT_SALES_URL  = 'https://docs.google.com/spreadsheets/d/e/2PACX-1vT6UZvnfsoKLqUOjWY4LjMzoe_6PkCmOxhOdfxBSe_oo_qElDlOCBmFY5gPdFFkQLRPU-69sQgDOGfv/pub?output=csv';
+const DEFAULT_RENTAL_URL = 'https://docs.google.com/spreadsheets/d/e/2PACX-1vRyqOa9IUj1W8xWW_rOkUXV3UdGVBlOUnCaPuWak8Wuglxkuhxbq7jKttbG7O9Qsr7810AmSpvL3HZU/pub?output=csv';
+
+// ─── STATE ───────────────────────────────────────────────────────────────────
+const TODAY = new Date(); TODAY.setHours(0,0,0,0);
+let salesDB=[], rentalDB=[], currentStore='';
+let agingChartSales=null, agingChartRental=null;
+
+// ─── INIT ─────────────────────────────────────────────────────────────────────
+document.getElementById('today-sub').textContent = '截至 '+TODAY.toLocaleDateString('zh-CN',{year:'numeric',month:'long',day:'numeric'});
+['sales','rental'].forEach(k=>{
+  const v=localStorage.getItem('url-'+k);
+  const el=document.getElementById('url-'+k);
+  if(el) el.value = v || '';
+});
+setTimeout(syncData, 500);
+
+// ─── HELPERS ──────────────────────────────────────────────────────────────────
+function daysSince(s) {
+  if(!s||!s.trim()) return null;
+  const parts=s.trim().replace(/\//g,'-').split('-');
+  if(parts.length<3) return null;
+  const d=new Date(+parts[0],+parts[1]-1,+parts[2]);
+  if(isNaN(d)) return null;
+  return Math.floor((TODAY-d)/864e5);
+}
+function fmtAmt(v){return '$'+(+v||0).toLocaleString('en',{minimumFractionDigits:2,maximumFractionDigits:2});}
+function ageBadge(d){
+  if(d===null) return '<span class="badge badge-gray">—</span>';
+  if(d>=90) return '<span class="badge badge-red">'+d+'天</span>';
+  if(d>=60) return '<span class="badge badge-orange">'+d+'天</span>';
+  if(d>=30) return '<span class="badge badge-orange" style="opacity:.8">'+d+'天</span>';
+  return '<span class="badge badge-green">'+d+'天</span>';
+}
+function storeBadge(s){const m={'悉尼':'syd','墨尔本':'mel','布里斯班':'bne','珀斯':'per'};return '<span class="store-tag '+(m[s]||'gray')+'">'+s+'</span>';}
+function noteBadge(n){
+  if(!n) return '';
+  if(isSuspended(n)) return '<span class="badge badge-muted">挂起</span>';
+  return '<span class="badge badge-gray">'+n+'</span>';
+}
+function isSuspended(note){return note&&note.includes('[挂起]');}
+function applyAgeFilter(days,v){
+  if(!v) return true; if(days===null) return false;
+  if(v==='90') return days>=90; if(v==='60') return days>=60&&days<90;
+  if(v==='30') return days>=30&&days<60; if(v==='0') return days<30;
+  return true;
+}
+function filteredSalesPaid(inclSuspended=true){
+  let d=salesDB.filter(r=>r.deposit&&r.deposit.trim());
+  if(currentStore) d=d.filter(r=>r.store===currentStore);
+  if(!inclSuspended) d=d.filter(r=>!isSuspended(r.note));
+  return d;
+}
+function filteredSalesNopay(){
+  let d=salesDB.filter(r=>!r.deposit||!r.deposit.trim());
+  if(currentStore) d=d.filter(r=>r.store===currentStore);
+  return d;
+}
+function filteredRental(){
+  let d=rentalDB.slice();
+  if(currentStore) d=d.filter(r=>r.store===currentStore);
+  return d;
+}
+function allReps(){return [...new Set([...salesDB.map(r=>r.rep),...rentalDB.map(r=>r.rep)])].filter(Boolean).sort();}
+function updateRepFilters(){
+  const reps=allReps();
+  ['sp-rep','sn-rep','rn-rep'].forEach(id=>{
+    const el=document.getElementById(id); if(!el) return;
+    const cur=el.value;
+    el.innerHTML='<option value="">全部</option>'+reps.map(r=>'<option'+(r===cur?' selected':'')+'>'+r+'</option>').join('');
+  });
+}
+function setStore(s){
+  currentStore=s;
+  document.querySelectorAll('.store-btn').forEach(b=>b.classList.remove('active'));
+  document.getElementById('store-'+(s||'all')).classList.add('active');
+  renderAll();
+}
+const paneNames={'overview':'汇总总览','sales-paid':'销售单 · 已收定金','sales-nopay':'销售单 · 未收定金','rental':'租赁单','setup':'数据源配置'};
+function switchTab(id){
+  document.querySelectorAll('.pane').forEach(p=>p.classList.remove('active'));
+  document.querySelectorAll('.nav-item').forEach((n,i)=>{
+    n.classList.toggle('active',['overview','sales-paid','sales-nopay','rental','setup'][i]===id);
+  });
+  document.getElementById('tab-'+id).classList.add('active');
+  document.getElementById('pane-title').textContent=paneNames[id]||id;
+}
+function setConnStatus(type,label){
+  const el=document.getElementById('conn-status');
+  const cls=type==='ok'?'dot-ok':type==='err'?'dot-err':'dot-warn';
+  el.innerHTML='<span class="status-dot '+cls+'"></span><span style="font-size:10px;color:var(--text3)">'+label+'</span>';
+}
+
+// ─── CSV PARSE ────────────────────────────────────────────────────────────────
+function parseCSV(text){
+  const lines=text.trim().split('\n').filter(l=>l.trim());
+  if(lines.length<2) return [];
+  const headers=lines[0].split(',').map(h=>h.trim().replace(/"/g,'').toLowerCase().replace(/\s+/g,''));
+  return lines.slice(1).map(line=>{
+    const cols=[]; let cur='',inQ=false;
+    for(const c of line){if(c==='"'){inQ=!inQ;}else if(c===','&&!inQ){cols.push(cur.trim());cur='';}else cur+=c;}
+    cols.push(cur.trim());
+    const obj={};
+    headers.forEach((h,i)=>obj[h]=(cols[i]||'').replace(/"/g,'').trim());
+    return obj;
+  });
+}
+function colV(row,...keys){
+  for(const k of keys){
+    const lk=k.toLowerCase().replace(/\s+/g,'');
+    for(const rk of Object.keys(row)){if(rk===lk) return row[rk]||'';}
+  }
+  return '';
+}
+function mapSalesRow(row,store){
+  const company=colV(row,'customcompany','customer company','companycustomer');
+  const contact=colV(row,'customer','客户');
+  const cust=company&&company!=='N/A'&&contact&&company!==contact?company+' / '+contact:(company&&company!=='N/A'?company:contact);
+  return {store,inv:colV(row,'invoicenumber','invoice number'),date:colV(row,'invoicedate','invoice date'),
+    cust,rep:colV(row,'salesrep','sales rep'),
+    total:parseFloat(colV(row,'totalamount','total amount')||0),
+    paid:parseFloat(colV(row,'totalamountpaid','total amount paid')||0),
+    bal:parseFloat(colV(row,'balanceamount','balance amount')||0),
+    deposit:colV(row,'depositdate','deposit date','depoist date'),
+    note:colV(row,'备注','note','remark')};
+}
+function mapRentalRow(row,store){
+  const company=colV(row,'customcompany','customer company','companycustomer');
+  const contact=colV(row,'customer','客户');
+  const cust=company&&company!=='N/A'&&contact&&company!==contact?company+' / '+contact:(company&&company!=='N/A'?company:contact);
+  return {store,inv:colV(row,'invoicenumber','invoice number'),date:colV(row,'invoicedate','invoice date'),
+    cust,rep:colV(row,'salesrep','sales rep'),
+    bal:parseFloat(colV(row,'balanceamount','balance amount')||0),
+    note:colV(row,'备注','note','remark')};
+}
+
+// ─── FETCH ────────────────────────────────────────────────────────────────────
+async function fetchCSV(url) {
+  if(!url||!url.trim()) return null;
+  let u=url.trim();
+  if(!u.includes('output=csv')) u+=(u.includes('?')?'&':'?')+'output=csv';
+  // Direct fetch first
+  try {
+    const r=await fetch(u,{cache:'no-cache',credentials:'omit'});
+    if(r.ok){const t=await r.text();if(t&&t.trim().length>5) return {ok:true,text:t};}
+  } catch(e){}
+  // Fallback: allorigins proxy
+  try {
+    const proxy='https://api.allorigins.win/get?url='+encodeURIComponent(u);
+    const r=await fetch(proxy,{cache:'no-cache'});
+    if(r.ok){const d=await r.json();if(d&&d.contents&&d.contents.trim().length>5) return {ok:true,text:d.contents};}
+  } catch(e){}
+  return {ok:false,error:'无法读取，请检查Google Sheets是否已发布为CSV'};
+}
+
+// ─── SYNC ─────────────────────────────────────────────────────────────────────
+async function syncData(){
+  const btn=document.getElementById('sync-btn');
+  btn.classList.add('loading');
+  btn.innerHTML='<span class="spinner"></span>同步中…';
+  const urlS=(document.getElementById('url-sales')||{}).value||localStorage.getItem('url-sales')||DEFAULT_SALES_URL;
+  const urlR=(document.getElementById('url-rental')||{}).value||localStorage.getItem('url-rental')||DEFAULT_RENTAL_URL;
+  salesDB=[]; rentalDB=[];
+  let ok=0; const fails=[];
+  if(urlS){
+    const res=await fetchCSV(urlS);
+    if(res&&res.ok){const rows=parseCSV(res.text);if(rows.length){rows.forEach(r=>salesDB.push(mapSalesRow(r,colV(r,'门店','store','branch')||'悉尼')));ok++;}else fails.push('销售表无数据行');}
+    else fails.push('销售：'+(res?res.error:'失败'));
+  }
+  if(urlR){
+    const res=await fetchCSV(urlR);
+    if(res&&res.ok){const rows=parseCSV(res.text);if(rows.length){rows.forEach(r=>rentalDB.push(mapRentalRow(r,colV(r,'门店','store','branch')||'悉尼')));ok++;}else fails.push('租赁表无数据行');}
+    else fails.push('租赁：'+(res?res.error:'失败'));
+  }
+  updateRepFilters(); renderAll();
+  btn.classList.remove('loading'); btn.textContent='↻ 同步数据';
+  document.getElementById('last-update-label').textContent='更新: '+new Date().toLocaleTimeString('zh-CN',{hour:'2-digit',minute:'2-digit'});
+  if(fails.length===0){
+    setConnStatus('ok','已连接 · '+salesDB.length+'销售 '+rentalDB.length+'租赁');
+    document.getElementById('setup-msg').textContent='✓ 同步成功：'+salesDB.length+' 条销售，'+rentalDB.length+' 条租赁';
+  } else {
+    setConnStatus(ok>0?'warn':'err',ok>0?'部分成功':'连接失败');
+    document.getElementById('setup-msg').innerHTML=(ok>0?'⚠ ':'✗ ')+fails.map(l=>'· '+l).join('<br>');
+    if(!salesDB.length&&!rentalDB.length) loadDemoData();
+  }
+}
+
+// ─── RENDER OVERVIEW ──────────────────────────────────────────────────────────
+function renderOverview(){
+  const sp=filteredSalesPaid(false),sn=filteredSalesNopay(),rn=filteredRental();
+  const spTot=sp.reduce((s,r)=>s+r.bal,0),snTot=sn.reduce((s,r)=>s+r.bal,0),rnTot=rn.reduce((s,r)=>s+r.bal,0);
+  const over90=[...sp.filter(r=>daysSince(r.deposit)>=90),...rn.filter(r=>daysSince(r.date)>=90)].reduce((s,r)=>s+r.bal,0);
+  document.getElementById('m-sp').textContent=fmtAmt(spTot);
+  document.getElementById('m-sn').textContent=fmtAmt(snTot);
+  document.getElementById('m-rn').textContent=fmtAmt(rnTot);
+  document.getElementById('m-over').textContent=fmtAmt(over90);
+  const repMap={};sp.forEach(r=>{repMap[r.rep]=(repMap[r.rep]||0)+r.bal;});
+  const repArr=Object.entries(repMap).sort((a,b)=>b[1]-a[1]).slice(0,6);
+  const maxR=repArr[0]?repArr[0][1]:1;
+  document.getElementById('ov-rank').innerHTML=repArr.length?repArr.map(([name,amt])=>
+    '<div class="rank-row"><div class="rank-name">'+name+'</div><div class="rank-bar-bg"><div class="rank-bar-fill" style="width:'+Math.round(amt/maxR*100)+'%;background:var(--red)"></div></div><div class="rank-amt">'+fmtAmt(amt)+'</div></div>'
+  ).join(''):'<div class="empty">暂无数据</div>';
+  const bs=[0,0,0,0];
+  sp.forEach(r=>{const d=daysSince(r.deposit);if(d===null)return;if(d>=90)bs[3]+=r.bal;else if(d>=60)bs[2]+=r.bal;else if(d>=30)bs[1]+=r.bal;else bs[0]+=r.bal;});
+  if(agingChartSales) agingChartSales.destroy();
+  agingChartSales=new Chart(document.getElementById('agingChartSales'),{type:'bar',data:{labels:['<30天','30-59天','60-89天','≥90天'],datasets:[{data:bs,backgroundColor:['#16a34a','#b45309','#c2620a','#dc2626'],borderRadius:4,borderSkipped:false}]},options:{responsive:true,maintainAspectRatio:false,plugins:{legend:{display:false},tooltip:{callbacks:{label:ctx=>' '+fmtAmt(ctx.raw)}}},scales:{x:{grid:{display:false},ticks:{color:'#6b7280',font:{size:10}}},y:{grid:{color:'rgba(0,0,0,0.05)'},ticks:{color:'#6b7280',font:{size:10},callback:v=>'$'+Math.round(v/1000)+'k'}}}}});
+  const br=[0,0,0,0];
+  rn.forEach(r=>{const d=daysSince(r.date);if(d===null)return;if(d>=90)br[3]+=r.bal;else if(d>=60)br[2]+=r.bal;else if(d>=30)br[1]+=r.bal;else br[0]+=r.bal;});
+  if(agingChartRental) agingChartRental.destroy();
+  agingChartRental=new Chart(document.getElementById('agingChartRental'),{type:'bar',data:{labels:['<30天','30-59天','60-89天','≥90天'],datasets:[{data:br,backgroundColor:['#16a34a','#b45309','#c2620a','#dc2626'],borderRadius:4,borderSkipped:false}]},options:{responsive:true,maintainAspectRatio:false,plugins:{legend:{display:false},tooltip:{callbacks:{label:ctx=>' '+fmtAmt(ctx.raw)}}},scales:{x:{grid:{display:false},ticks:{color:'#6b7280',font:{size:10}}},y:{grid:{color:'rgba(0,0,0,0.05)'},ticks:{color:'#6b7280',font:{size:10},callback:v=>'$'+Math.round(v/1000)+'k'}}}}});
+  const warns=[...sp.filter(r=>daysSince(r.deposit)>=60),...rn.filter(r=>daysSince(r.date)>=60)];
+  warns.sort((a,b)=>(daysSince(b.deposit||b.date)||0)-(daysSince(a.deposit||a.date)||0));
+  document.getElementById('ov-warn').innerHTML=warns.length?'<table><thead><tr><th>门店</th><th>单号</th><th>类型</th><th>客户</th><th>销售</th><th>应收金额</th><th>距今天数</th><th>备注</th></tr></thead><tbody>'
+    +warns.map(r=>{const isSales=r.deposit!==undefined;const d=isSales?daysSince(r.deposit):daysSince(r.date);return'<tr><td>'+storeBadge(r.store)+'</td><td class="primary" style="font-family:var(--mono);font-size:11px">'+r.inv+'</td><td>'+(isSales?'<span class="badge badge-blue">销售</span>':'<span class="badge badge-purple">租赁</span>')+'</td><td class="primary">'+r.cust+'</td><td>'+r.rep+'</td><td class="primary" style="font-family:var(--mono)">'+fmtAmt(r.bal)+'</td><td>'+ageBadge(d)+'</td><td>'+noteBadge(r.note)+'</td></tr>';}).join('')+'</tbody></table>'
+    :'<div class="empty"><div class="empty-icon">✓</div>暂无≥60天预警</div>';
+}
+
+// ─── RENDER SALES PAID ────────────────────────────────────────────────────────
+function renderSalesPaid(){
+  const rep=document.getElementById('sp-rep').value;
+  const age=document.getElementById('sp-age').value;
+  const showSusp=document.getElementById('sp-show-suspended').checked;
+  let active=filteredSalesPaid(false).filter(r=>(!rep||r.rep===rep)&&applyAgeFilter(daysSince(r.deposit),age));
+  let suspended=filteredSalesPaid(true).filter(r=>isSuspended(r.note)&&(!rep||r.rep===rep));
+  const displayData=showSusp?[...active.sort((a,b)=>(daysSince(b.deposit)||0)-(daysSince(a.deposit)||0)),...suspended]:active.sort((a,b)=>(daysSince(b.deposit)||0)-(daysSince(a.deposit)||0));
+  const aTot=active.reduce((s,r)=>s+r.bal,0),sTot=suspended.reduce((s,r)=>s+r.bal,0);
+  document.getElementById('sp-count').innerHTML=active.length+'条，应收合计 <b>'+fmtAmt(aTot)+'</b>'+(showSusp&&suspended.length?' <span style="color:var(--text3);font-weight:400">（另含'+suspended.length+'票挂起 '+fmtAmt(sTot)+'）</span>':'');
+  document.getElementById('sp-table').innerHTML=displayData.length?'<table><thead><tr><th>门店</th><th>单号</th><th>开单日期</th><th>客户</th><th>销售</th><th>总金额</th><th>已付</th><th>应收余额</th><th>收定日期</th><th>距今天数</th><th>备注</th></tr></thead><tbody>'
+    +displayData.map(r=>{const d=daysSince(r.deposit);const susp=isSuspended(r.note);return'<tr'+(susp?' class="suspended"':'')+'><td>'+storeBadge(r.store)+'</td><td class="primary" style="font-family:var(--mono);font-size:11px">'+r.inv+'</td><td style="font-family:var(--mono);font-size:11px">'+r.date+'</td><td class="primary">'+r.cust+'</td><td>'+r.rep+'</td><td style="font-family:var(--mono)">'+fmtAmt(r.total)+'</td><td style="font-family:var(--mono)">'+fmtAmt(r.paid)+'</td><td class="primary" style="font-family:var(--mono)">'+fmtAmt(r.bal)+'</td><td style="font-family:var(--mono);font-size:11px">'+r.deposit+'</td><td>'+(susp?'<span class="badge badge-muted">挂起</span>':ageBadge(d))+'</td><td>'+noteBadge(r.note)+'</td></tr>';}).join('')+'</tbody></table>'
+    :'<div class="empty"><div class="empty-icon">📋</div>无匹配数据</div>';
+}
+
+// ─── RENDER SALES NOPAY ───────────────────────────────────────────────────────
+function renderSalesNopay(){
+  const rep=document.getElementById('sn-rep').value;
+  let data=filteredSalesNopay(); if(rep) data=data.filter(r=>r.rep===rep);
+  const tot=data.reduce((s,r)=>s+r.bal,0);
+  document.getElementById('sn-count').textContent=data.length+'条，合计 '+fmtAmt(tot);
+  document.getElementById('sn-table').innerHTML=data.length?'<table><thead><tr><th>门店</th><th>单号</th><th>开单日期</th><th>客户</th><th>销售</th><th>总金额</th><th>应收金额</th><th>备注</th></tr></thead><tbody>'
+    +data.map(r=>'<tr><td>'+storeBadge(r.store)+'</td><td class="primary" style="font-family:var(--mono);font-size:11px">'+r.inv+'</td><td style="font-family:var(--mono);font-size:11px">'+r.date+'</td><td class="primary">'+r.cust+'</td><td>'+r.rep+'</td><td style="font-family:var(--mono)">'+fmtAmt(r.total)+'</td><td class="primary" style="font-family:var(--mono)">'+fmtAmt(r.bal)+'</td><td>'+noteBadge(r.note)+'</td></tr>').join('')+'</tbody></table>'
+    :'<div class="empty"><div class="empty-icon">📋</div>无数据</div>';
+}
+
+// ─── RENDER RENTAL ────────────────────────────────────────────────────────────
+function renderRental(){
+  const rep=document.getElementById('rn-rep').value;
+  const age=document.getElementById('rn-age').value;
+  let data=filteredRental(); if(rep) data=data.filter(r=>r.rep===rep);
+  data=data.filter(r=>applyAgeFilter(daysSince(r.date),age));
+  data.sort((a,b)=>(daysSince(b.date)||0)-(daysSince(a.date)||0));
+  const tot=data.reduce((s,r)=>s+r.bal,0);
+  document.getElementById('rn-count').textContent=data.length+'条，应收合计 '+fmtAmt(tot);
+  document.getElementById('rn-table').innerHTML=data.length?'<table><thead><tr><th>门店</th><th>单号</th><th>开票日期</th><th>客户</th><th>销售</th><th>应收金额</th><th>距今天数</th><th>备注</th></tr></thead><tbody>'
+    +data.map(r=>{const d=daysSince(r.date);return'<tr><td>'+storeBadge(r.store)+'</td><td class="primary" style="font-family:var(--mono);font-size:11px">'+r.inv+'</td><td style="font-family:var(--mono);font-size:11px">'+r.date+'</td><td class="primary">'+r.cust+'</td><td>'+r.rep+'</td><td class="primary" style="font-family:var(--mono)">'+fmtAmt(r.bal)+'</td><td>'+ageBadge(d)+'</td><td>'+noteBadge(r.note)+'</td></tr>';}).join('')+'</tbody></table>'
+    :'<div class="empty"><div class="empty-icon">📋</div>无匹配数据</div>';
+}
+
+function renderAll(){renderOverview();renderSalesPaid();renderSalesNopay();renderRental();}
+
+// ─── SETUP ACTIONS ────────────────────────────────────────────────────────────
+function saveAndSync(){
+  const s=(document.getElementById('url-sales')||{}).value||'';
+  const r=(document.getElementById('url-rental')||{}).value||'';
+  if(s) localStorage.setItem('url-sales',s.trim());
+  if(r) localStorage.setItem('url-rental',r.trim());
+  syncData();
+}
+function clearAllUrls(){
+  if(!confirm('确定清除所有自定义链接？将恢复使用内置默认链接。')) return;
+  ['url-sales','url-rental'].forEach(k=>{localStorage.removeItem(k);const el=document.getElementById(k);if(el)el.value='';const h=document.getElementById('hint-'+k.replace('url-',''));if(h)h.textContent='';});
+  document.getElementById('setup-msg').textContent='已清除，使用内置链接重新同步…';
+  syncData(); switchTab('overview');
+}
+async function testSingleUrl(key){
+  const input=document.getElementById('url-'+key);
+  const hint=document.getElementById('hint-'+key);
+  const url=(input&&input.value.trim())||(key==='sales'?DEFAULT_SALES_URL:DEFAULT_RENTAL_URL);
+  if(hint){hint.style.color='#6b7280';hint.textContent='⏳ 测试中…';}
+  const result=await fetchCSV(url);
+  if(result&&result.ok){const rows=result.text.trim().split('\n').length-1;if(hint){hint.style.color='#15803d';hint.textContent='✓ 成功！读到 '+rows+' 行数据';}}
+  else{if(hint){hint.style.color='#dc2626';hint.textContent='✗ '+(result?result.error:'失败');}}
+}
+
+// ─── DEMO DATA ────────────────────────────────────────────────────────────────
+function loadDemoData(){
+  salesDB=[
+    {store:'悉尼',inv:'INV-24408S',date:'2024/11/18',cust:'LJ REFRIGERATION / Justin',rep:'Kenneth Huang',total:30849,paid:1000,bal:29849,deposit:'2024/11/20',note:''},
+    {store:'悉尼',inv:'INV-25184S',date:'2025/05/22',cust:'Saferway Pty Ltd / Michael',rep:'Jack Yao',total:46200,paid:1000,bal:45200,deposit:'2025/05/28',note:''},
+    {store:'悉尼',inv:'INV-25353S',date:'2025/08/06',cust:'Patient Support Systems / Daniel',rep:'Kuro Jia',total:9229,paid:1000,bal:8229,deposit:'2025/08/06',note:''},
+    {store:'悉尼',inv:'INV-26041S',date:'2025/12/05',cust:'JETIS TRADING / Sam',rep:'Rebecca Li',total:90000,paid:2000,bal:88000,deposit:'2026/02/02',note:''},
+    {store:'悉尼',inv:'INV-26194S',date:'2026/04/01',cust:'DAMOUR GROUP / Eddy Sarkis',rep:'Hank',total:45870,paid:1000,bal:44870,deposit:'2026/04/01',note:''},
+    {store:'悉尼',inv:'INV-24044S',date:'2024/02/23',cust:'Jianfeng LI',rep:'Hank',total:132544,paid:1000,bal:131544,deposit:'2024/02/27',note:'[挂起] 贷款未落'},
+    {store:'悉尼',inv:'INV-26200S',date:'2026/04/10',cust:'TBC Client',rep:'Kuro Jia',total:15000,paid:0,bal:15000,deposit:'',note:'提前建单'},
+    {store:'布里斯班',inv:'INV-B001',date:'2025/07/20',cust:'QLD Homes',rep:'Peter Tan',total:33000,paid:1000,bal:32000,deposit:'2025/07/22',note:''},
+    {store:'珀斯',inv:'INV-P001',date:'2025/09/10',cust:'WA Industrial',rep:'Mark Wang',total:57000,paid:1000,bal:56000,deposit:'2025/09/15',note:''},
+  ];
+  rentalDB=[
+    {store:'悉尼',inv:'Rental-25011S',date:'2025/11/01',cust:'Hakka Pty Ltd / David Liu',rep:'Hank',bal:363,note:''},
+    {store:'悉尼',inv:'Rental-25053S',date:'2025/12/15',cust:'LJ INTERIORS NSW / Kidd',rep:'Hank',bal:523.6,note:''},
+    {store:'悉尼',inv:'Rental-26077S',date:'2026/02/12',cust:'LJ INTERIORS NSW / Kidd',rep:'Hank',bal:484,note:''},
+    {store:'布里斯班',inv:'RNT-B01',date:'2024/09/05',cust:'QLD Rigs / Peter',rep:'Peter Tan',bal:22000,note:''},
+    {store:'珀斯',inv:'RNT-P01',date:'2024/06/10',cust:'WA Mining Supplies',rep:'Mark Wang',bal:18500,note:''},
+  ];
+  updateRepFilters(); renderAll();
+  setConnStatus('warn','演示数据');
+  document.getElementById('last-update-label').textContent='演示数据';
+}
+</script>
+</body>
+</html>
