@@ -209,6 +209,9 @@ tr.suspended td{opacity:.4;text-decoration:line-through}
           <label style="display:flex;align-items:center;gap:4px;cursor:pointer">
             <input type="checkbox" id="sp-show-suspended" onchange="renderSalesPaid()">显示挂起单据
           </label>
+          <div style="margin-left:auto">
+            <button class="btn" onclick="exportPDF('sp-table','销售单·已收定金')" style="background:#2563eb;color:#fff;border-color:#2563eb;font-size:11px">⬇ 导出 PDF</button>
+          </div>
         </div>
         <div class="result-count" id="sp-count"></div>
         <div class="table-wrap" id="sp-table"><div class="empty"><div class="empty-icon">📋</div>请先同步数据</div></div>
@@ -220,6 +223,9 @@ tr.suspended td{opacity:.4;text-decoration:line-through}
         <div class="fbar">
           <label>销售:</label>
           <select id="sn-rep" onchange="renderSalesNopay()"><option value="">全部</option></select>
+          <div style="margin-left:auto">
+            <button class="btn" onclick="exportPDF('sn-table','销售单·未收定金')" style="background:#2563eb;color:#fff;border-color:#2563eb;font-size:11px">⬇ 导出 PDF</button>
+          </div>
         </div>
         <div class="result-count" id="sn-count"></div>
         <div class="table-wrap" id="sn-table"><div class="empty"><div class="empty-icon">📋</div>请先同步数据</div></div>
@@ -235,6 +241,9 @@ tr.suspended td{opacity:.4;text-decoration:line-through}
             <option value="">全部</option><option value="90">≥90天</option>
             <option value="60">60-89天</option><option value="30">30-59天</option><option value="0">&lt;30天</option>
           </select>
+          <div style="margin-left:auto">
+            <button class="btn" onclick="exportPDF('rn-table','租赁单')" style="background:#2563eb;color:#fff;border-color:#2563eb;font-size:11px">⬇ 导出 PDF</button>
+          </div>
         </div>
         <div class="result-count" id="rn-count"></div>
         <div class="table-wrap" id="rn-table"><div class="empty"><div class="empty-icon">📋</div>请先同步数据</div></div>
@@ -629,6 +638,84 @@ function renderRental(){
 }
 
 function renderAll(){renderOverview();renderSalesPaid();renderSalesNopay();renderRental();}
+
+// ─── PDF 导出 ─────────────────────────────────────────────────────────────────
+function exportPDF(tableId, title) {
+  const tableEl = document.getElementById(tableId);
+  if(!tableEl || !tableEl.querySelector('table')) {
+    alert('暂无数据可导出');
+    return;
+  }
+  const countId = tableId.replace('-table','-count');
+  const countEl = document.getElementById(countId);
+  const countText = countEl ? countEl.innerText : '';
+  const dateStr = new Date().toLocaleDateString('zh-CN',{year:'numeric',month:'long',day:'numeric'});
+
+  // Build filter description
+  const repSel = tableId==='sp-table'?'sp-rep':tableId==='sn-table'?'sn-rep':'rn-rep';
+  const ageSel = tableId==='sp-table'?'sp-age':tableId==='rn-table'?'rn-age':null;
+  const repEl = document.getElementById(repSel);
+  const ageEl = ageSel ? document.getElementById(ageSel) : null;
+  const repVal = repEl && repEl.value ? '销售：'+repEl.options[repEl.selectedIndex].text : '';
+  const ageVal = ageEl && ageEl.value ? '账龄：'+ageEl.options[ageEl.selectedIndex].text : '';
+  const filterDesc = [repVal, ageVal].filter(Boolean).join('　|　') || '全部';
+
+  const tableHTML = tableEl.innerHTML;
+
+  const printWin = window.open('','_blank','width=1100,height=800');
+  printWin.document.write(`<!DOCTYPE html>
+<html lang="zh-CN"><head>
+<meta charset="UTF-8">
+<title>${title} - ${dateStr}</title>
+<style>
+  *{box-sizing:border-box;margin:0;padding:0}
+  body{font-family:'Noto Sans SC','Microsoft YaHei',sans-serif;font-size:11px;color:#111827;padding:24px 28px;background:#fff}
+  .header{margin-bottom:16px;border-bottom:2px solid #2563eb;padding-bottom:10px}
+  .header h1{font-size:16px;font-weight:700;color:#1e3a8a}
+  .header .meta{font-size:10px;color:#6b7280;margin-top:4px;display:flex;gap:16px}
+  .header .meta span{display:inline-flex;align-items:center;gap:4px}
+  .count{font-size:11px;font-weight:600;color:#374151;margin-bottom:10px}
+  table{width:100%;border-collapse:collapse;font-size:10.5px}
+  th{padding:6px 8px;font-size:9.5px;font-weight:700;color:#374151;border-bottom:1.5px solid #2563eb;border-top:1px solid #e5e7eb;white-space:nowrap;text-align:left;background:#f0f4ff}
+  td{padding:5px 8px;border-bottom:0.5px solid #e5e7eb;vertical-align:middle;color:#374151}
+  td.primary{color:#111827;font-weight:600}
+  tr:nth-child(even) td{background:#fafbff}
+  .badge{display:inline-block;padding:1px 6px;border-radius:3px;font-size:9px;font-weight:700;white-space:nowrap}
+  .badge-red{background:#fee2e2;color:#b91c1c}
+  .badge-orange{background:#ffedd5;color:#9a3412}
+  .badge-green{background:#dcfce7;color:#15803d}
+  .badge-gray{background:#f1f5f9;color:#374151}
+  .badge-blue{background:#dbeafe;color:#1d4ed8}
+  .badge-purple{background:#ede9fe;color:#6d28d9}
+  .badge-muted{background:#f1f5f9;color:#9ca3af;text-decoration:line-through}
+  .store-tag{display:inline-block;padding:1px 6px;border-radius:3px;font-size:9px;font-weight:700}
+  .syd{background:#dbeafe;color:#1d4ed8}.per{background:#ede9fe;color:#6d28d9}.bne{background:#ffedd5;color:#9a3412}
+  tr.suspended td{opacity:.45;text-decoration:line-through}
+  /* Rental grouped rows */
+  tr[style*="eef3ff"]{background:#eef3ff!important}
+  tr[style*="fafbff"]{background:#fafbff!important}
+  tr[style*="e0e9ff"]{background:#e0e9ff!important}
+  .footer{margin-top:16px;font-size:9px;color:#9ca3af;text-align:right;border-top:0.5px solid #e5e7eb;padding-top:8px}
+  @media print{
+    body{padding:12px 16px}
+    @page{margin:10mm 12mm;size:A4 landscape}
+  }
+</style>
+</head><body>
+  <div class="header">
+    <h1>应收账款周报 · ${title}</h1>
+    <div class="meta">
+      <span>📅 导出时间：${dateStr}</span>
+      <span>🔍 筛选条件：${filterDesc}</span>
+    </div>
+  </div>
+  <div class="count">${countText}</div>
+  ${tableHTML}
+  <div class="footer">AR Weekly Report · ${dateStr} · 数据来源：应收账款周报系统</div>
+  <script>window.onload=function(){window.print();}<\/script>
+</body></html>`);
+  printWin.document.close();
+}
 
 // ─── SETUP ACTIONS ────────────────────────────────────────────────────────────
 function saveAndSync(){
