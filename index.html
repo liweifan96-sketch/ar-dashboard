@@ -46,10 +46,16 @@ body{font-family:var(--sans);background:var(--bg);color:var(--text);min-height:1
 .content{padding:20px 24px}
 .pane{display:none}.pane.active{display:block}
 .metrics{display:grid;grid-template-columns:repeat(4,1fr);gap:10px;margin-bottom:18px}
+.metrics-top{display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:8px}
+.metrics-sub{display:grid;grid-template-columns:repeat(3,1fr);gap:8px;margin-bottom:18px;padding:10px 12px;background:var(--surface2);border-radius:8px;border:0.5px solid var(--border)}
 .metric-card{background:var(--surface);border:0.5px solid var(--border);border-radius:8px;padding:14px 16px;position:relative;overflow:hidden}
+.metric-card-sm{background:var(--surface);border:0.5px solid var(--border);border-radius:6px;padding:10px 12px;position:relative;overflow:hidden}
 .metric-card::before{content:'';position:absolute;top:0;left:0;right:0;height:3px}
+.metric-card-sm::before{content:'';position:absolute;top:0;left:0;right:0;height:2px}
 .metric-card.c-red::before{background:var(--red)}.metric-card.c-orange::before{background:var(--orange)}
 .metric-card.c-green::before{background:var(--green)}.metric-card.c-blue::before{background:var(--accent)}
+.metric-card-sm.c-red::before{background:var(--red)}.metric-card-sm.c-orange::before{background:var(--orange)}
+.metric-card-sm.c-gray::before{background:var(--text3)}
 .metric-label{font-size:10px;font-weight:600;color:var(--text2);text-transform:uppercase;letter-spacing:.5px;margin-bottom:8px}
 .metric-val{font-family:var(--mono);font-size:20px;font-weight:600}
 .metric-val.red{color:var(--red)}.metric-val.orange{color:var(--orange)}.metric-val.green{color:var(--green)}
@@ -150,11 +156,34 @@ tr.suspended td{opacity:.4;text-decoration:line-through}
     <div class="content">
       <!-- OVERVIEW -->
       <div class="pane active" id="tab-overview">
-        <div class="metrics">
-          <div class="metric-card c-red"><div class="metric-label">销售应收（已收定金）</div><div class="metric-val" id="m-sp">—</div><div class="metric-sub">已收定金单据</div></div>
-          <div class="metric-card c-orange"><div class="metric-label">销售（未收定金）</div><div class="metric-val" id="m-sn">—</div><div class="metric-sub">提前建单</div></div>
-          <div class="metric-card c-orange"><div class="metric-label">租赁应收</div><div class="metric-val" id="m-rn">—</div><div class="metric-sub">开票未回款</div></div>
-          <div class="metric-card c-red"><div class="metric-label">≥90天预警</div><div class="metric-val red" id="m-over">—</div><div class="metric-sub">销售+租赁合计</div></div>
+        <div class="metrics-top">
+          <div class="metric-card c-red">
+            <div class="metric-label">全部销售应收合计</div>
+            <div class="metric-val" id="m-sales-all">—</div>
+            <div class="metric-sub">已收定金 + 未收定金 + 挂起</div>
+          </div>
+          <div class="metric-card c-orange">
+            <div class="metric-label">租赁应收</div>
+            <div class="metric-val" id="m-rn">—</div>
+            <div class="metric-sub">开票未回款</div>
+          </div>
+        </div>
+        <div class="metrics-sub">
+          <div class="metric-card-sm c-red">
+            <div class="metric-label" style="font-size:9px">已收定金应收</div>
+            <div class="metric-val" style="font-size:16px" id="m-sp">—</div>
+            <div class="metric-sub">已收定金单据</div>
+          </div>
+          <div class="metric-card-sm c-orange">
+            <div class="metric-label" style="font-size:9px">未收定金应收</div>
+            <div class="metric-val" style="font-size:16px" id="m-sn">—</div>
+            <div class="metric-sub">提前建单</div>
+          </div>
+          <div class="metric-card-sm c-gray">
+            <div class="metric-label" style="font-size:9px">挂起应收</div>
+            <div class="metric-val" style="font-size:16px" id="m-susp">—</div>
+            <div class="metric-sub">已从合计剔除</div>
+          </div>
         </div>
         <div class="two-col">
           <div class="card"><div class="sec-title">销售人员应收排名</div><div id="ov-rank"><div class="empty">暂无数据</div></div></div>
@@ -453,13 +482,21 @@ async function syncData(){
 
 // ─── RENDER OVERVIEW ──────────────────────────────────────────────────────────
 function renderOverview(){
-  const sp=filteredSalesPaid(false),sn=filteredSalesNopay(),rn=filteredRental();
-  const spTot=sp.reduce((s,r)=>s+r.bal,0),snTot=sn.reduce((s,r)=>s+r.bal,0),rnTot=rn.reduce((s,r)=>s+r.bal,0);
+  const sp=filteredSalesPaid(false); // 已收定金，不含挂起
+  const spSusp=filteredSalesPaid(true).filter(r=>isSuspended(r.note)); // 挂起的
+  const sn=filteredSalesNopay();
+  const rn=filteredRental();
+  const spTot=sp.reduce((s,r)=>s+r.bal,0);
+  const snTot=sn.reduce((s,r)=>s+r.bal,0);
+  const suspTot=spSusp.reduce((s,r)=>s+r.bal,0);
+  const salesAllTot=spTot+snTot+suspTot;
+  const rnTot=rn.reduce((s,r)=>s+r.bal,0);
   const over90=[...sp.filter(r=>daysSince(r.deposit)>=90),...rn.filter(r=>daysSince(r.date)>=90)].reduce((s,r)=>s+r.bal,0);
+  document.getElementById('m-sales-all').textContent=fmtAmt(salesAllTot);
   document.getElementById('m-sp').textContent=fmtAmt(spTot);
   document.getElementById('m-sn').textContent=fmtAmt(snTot);
+  document.getElementById('m-susp').textContent=fmtAmt(suspTot);
   document.getElementById('m-rn').textContent=fmtAmt(rnTot);
-  document.getElementById('m-over').textContent=fmtAmt(over90);
   const repMap={};sp.forEach(r=>{repMap[r.rep]=(repMap[r.rep]||0)+r.bal;});
   const repArr=Object.entries(repMap).sort((a,b)=>b[1]-a[1]).slice(0,6);
   const maxR=repArr[0]?repArr[0][1]:1;
