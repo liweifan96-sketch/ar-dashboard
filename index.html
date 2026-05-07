@@ -518,7 +518,7 @@ function renderRental(){
   document.getElementById('rn-count').innerHTML=data.length+'条，应收合计 <b>'+fmtAmt(tot)+'</b>';
   if(!data.length){document.getElementById('rn-table').innerHTML='<div class="empty"><div class="empty-icon">📋</div>无匹配数据</div>';return;}
 
-  // 按客户公司名分组（取 cust 的第一段，即公司名部分）
+  // 按客户公司名分组
   const getCompany=r=>{
     const c=r.cust||'';
     return c.includes(' / ')?c.split(' / ')[0].trim():c;
@@ -530,14 +530,14 @@ function renderRental(){
     groups[co].rows.push(r);
   });
 
-  // 每组内按距今天数降序排列
+  // 每组内按距今天数降序
   Object.values(groups).forEach(g=>{
     g.rows.sort((a,b)=>(daysSince(b.date)||0)-(daysSince(a.date)||0));
     g.total=g.rows.reduce((s,r)=>s+r.bal,0);
     g.maxDays=Math.max(...g.rows.map(r=>daysSince(r.date)||0));
   });
 
-  // 组间按最长账龄降序排列
+  // 组间按最长账龄降序
   const sortedGroups=Object.entries(groups).sort((a,b)=>b[1].maxDays-a[1].maxDays);
 
   let html='<table><thead><tr>'
@@ -545,41 +545,46 @@ function renderRental(){
     +'<th>应收金额</th><th>距今天数</th><th>备注</th>'
     +'</tr></thead><tbody>';
 
-  sortedGroups.forEach(([company, g])=>{
-    // 客户标题行
-    const coTotal=fmtAmt(g.total);
-    const coMaxBadge=ageBadge(g.maxDays);
-    html+='<tr style="background:#f0f4ff;border-top:1.5px solid #c7d7fa">'
-      +'<td colspan="3" style="font-weight:700;color:#1e3a8a;padding:6px 10px;font-size:12px">'+storeBadge(g.store)+'</td>'
+  sortedGroups.forEach(([company,g])=>{
+    const invoiceCount=g.rows.length;
+    // 客户标题行（淡蓝色）—— 始终显示，单号和开票日期留空
+    html+='<tr style="background:#eef3ff;border-top:2px solid #c7d7fa">'
+      +'<td>'+storeBadge(g.rows[0].store)+'</td>'
+      +'<td style="font-family:var(--mono);font-size:10px;color:var(--text3)">共'+invoiceCount+'张</td>'
+      +'<td></td>'
       +'<td style="font-weight:700;color:#1e3a8a;font-size:12px">'+company+'</td>'
-      +'<td style="color:var(--text2);font-size:11px">'+g.rep+'</td>'
-      +'<td style="font-weight:700;color:#1e3a8a;font-family:var(--mono)">'+coTotal+'</td>'
-      +'<td>'+coMaxBadge+'</td>'
-      +'<td style="font-size:10px;color:var(--text3)">共'+g.rows.length+'张</td>'
+      +'<td style="color:var(--text2)">'+g.rep+'</td>'
+      +'<td style="font-weight:700;color:#1e3a8a;font-family:var(--mono)">'+fmtAmt(g.total)+'</td>'
+      +'<td>'+ageBadge(g.maxDays)+'</td>'
+      +'<td></td>'
       +'</tr>';
 
-    // 明细行
-    if(g.rows.length>1){
-      g.rows.forEach(r=>{
-        const d=daysSince(r.date);
-        html+='<tr style="background:#fafbff">'
-          +'<td style="padding-left:20px">'+storeBadge(r.store)+'</td>'
-          +'<td class="primary" style="font-family:var(--mono);font-size:11px;padding-left:20px">'+r.inv+'</td>'
-          +'<td style="font-family:var(--mono);font-size:11px;color:var(--text2)">'+r.date+'</td>'
-          +'<td style="color:var(--text2);font-size:11px;padding-left:16px">↳ '+r.cust+'</td>'
-          +'<td style="color:var(--text2)">'+r.rep+'</td>'
-          +'<td style="font-family:var(--mono);font-weight:600">'+fmtAmt(r.bal)+'</td>'
-          +'<td>'+ageBadge(d)+'</td>'
-          +'<td>'+noteBadge(r.note)+'</td>'
-          +'</tr>';
-      });
-      // 小计行
-      html+='<tr style="background:#e8effe;border-bottom:1.5px solid #c7d7fa">'
-        +'<td colspan="5" style="text-align:right;font-size:11px;color:#3b5bdb;padding:4px 10px;font-weight:600">小计 Subtotal</td>'
-        +'<td style="font-family:var(--mono);font-weight:700;color:#1e3a8a">'+coTotal+'</td>'
+    // 明细行（始终展开，不管几张）
+    g.rows.forEach(r=>{
+      const d=daysSince(r.date);
+      html+='<tr style="background:#fafbff">'
+        +'<td style="padding-left:20px;font-size:11px;color:var(--text3)"></td>'
+        +'<td class="primary" style="font-family:var(--mono);font-size:11px;padding-left:16px">↳ '+r.inv+'</td>'
+        +'<td style="font-family:var(--mono);font-size:11px;color:var(--text2)">'+r.date+'</td>'
+        +'<td style="color:var(--text2);font-size:11px">'+r.cust+'</td>'
+        +'<td style="color:var(--text2)">'+r.rep+'</td>'
+        +'<td style="font-family:var(--mono);font-weight:600">'+fmtAmt(r.bal)+'</td>'
+        +'<td>'+ageBadge(d)+'</td>'
+        +'<td>'+noteBadge(r.note)+'</td>'
+        +'</tr>';
+    });
+
+    // 小计行（多于1张时显示）
+    if(invoiceCount>1){
+      html+='<tr style="background:#e0e9ff;border-bottom:1px solid #c7d7fa">'
+        +'<td colspan="5" style="text-align:right;font-size:11px;color:#3b5bdb;padding:5px 10px;font-weight:600">小计 Subtotal</td>'
+        +'<td style="font-family:var(--mono);font-weight:700;color:#1e3a8a;padding:5px 10px">'+fmtAmt(g.total)+'</td>'
         +'<td colspan="2"></td>'
         +'</tr>';
     }
+
+    // 客户之间加一个空隙行
+    html+='<tr style="height:6px;background:transparent"><td colspan="8"></td></tr>';
   });
 
   html+='</tbody></table>';
