@@ -128,6 +128,7 @@ tr.suspended td{opacity:.4;text-decoration:line-through}
       <div class="nav-item" onclick="switchTab('sales-paid')"><div class="nav-dot" style="background:var(--red)"></div>销售·已收定金</div>
       <div class="nav-item" onclick="switchTab('sales-nopay')"><div class="nav-dot" style="background:var(--text3)"></div>销售·未收定金</div>
       <div class="nav-item" onclick="switchTab('rental')"><div class="nav-dot" style="background:var(--orange)"></div>租赁单</div>
+      <div class="nav-item" onclick="switchTab('by-rep')"><div class="nav-dot" style="background:var(--green)"></div>按销售汇总</div>
       <div class="nav-section" style="margin-top:8px">系统</div>
       <div class="nav-item" onclick="switchTab('setup')"><div class="nav-dot" style="background:var(--text3)"></div>数据源配置</div>
     </nav>
@@ -247,6 +248,20 @@ tr.suspended td{opacity:.4;text-decoration:line-through}
         </div>
         <div class="result-count" id="rn-count"></div>
         <div class="table-wrap" id="rn-table"><div class="empty"><div class="empty-icon">📋</div>请先同步数据</div></div>
+      </div>
+
+      <!-- BY REP -->
+      <div class="pane" id="tab-by-rep">
+        <div class="fbar" style="align-items:center">
+          <label>选择销售：</label>
+          <select id="br-rep" onchange="renderByRep()" style="font-size:13px;height:32px;font-weight:600">
+            <option value="">-- 请选择销售人员 --</option>
+          </select>
+          <div style="margin-left:auto">
+            <button class="btn" onclick="exportRepPDF()" style="background:#2563eb;color:#fff;border-color:#2563eb;font-size:11px">⬇ 导出此销售PDF</button>
+          </div>
+        </div>
+        <div id="br-content"><div class="empty"><div class="empty-icon">👆</div>请选择一位销售人员查看汇总</div></div>
       </div>
 
       <!-- SETUP -->
@@ -369,6 +384,7 @@ function updateRepFilters(){
     const cur=el.value;
     el.innerHTML='<option value="">全部</option>'+reps.map(r=>'<option'+(r===cur?' selected':'')+'>'+r+'</option>').join('');
   });
+  updateByRepSelector();
 }
 function setStore(s){
   currentStore=s;
@@ -376,14 +392,15 @@ function setStore(s){
   document.getElementById('store-'+(s||'all')).classList.add('active');
   renderAll();
 }
-const paneNames={'overview':'汇总总览','sales-paid':'销售单 · 已收定金','sales-nopay':'销售单 · 未收定金','rental':'租赁单','setup':'数据源配置'};
+const paneNames={'overview':'汇总总览','sales-paid':'销售单 · 已收定金','sales-nopay':'销售单 · 未收定金','rental':'租赁单','by-rep':'按销售汇总','setup':'数据源配置'};
 function switchTab(id){
   document.querySelectorAll('.pane').forEach(p=>p.classList.remove('active'));
   document.querySelectorAll('.nav-item').forEach((n,i)=>{
-    n.classList.toggle('active',['overview','sales-paid','sales-nopay','rental','setup'][i]===id);
+    n.classList.toggle('active',['overview','sales-paid','sales-nopay','rental','by-rep','setup'][i]===id);
   });
   document.getElementById('tab-'+id).classList.add('active');
   document.getElementById('pane-title').textContent=paneNames[id]||id;
+  if(id==='by-rep') renderByRep();
 }
 function setConnStatus(type,label){
   const el=document.getElementById('conn-status');
@@ -639,7 +656,183 @@ function renderRental(){
 
 function renderAll(){renderOverview();renderSalesPaid();renderSalesNopay();renderRental();}
 
-// ─── PDF 导出 ─────────────────────────────────────────────────────────────────
+// ─── BY REP VIEW ──────────────────────────────────────────────────────────────
+function updateByRepSelector(){
+  const sel=document.getElementById('br-rep');
+  if(!sel) return;
+  const cur=sel.value;
+  const reps=allReps();
+  sel.innerHTML='<option value="">-- 请选择销售人员 --</option>'+reps.map(r=>'<option'+(r===cur?' selected':'')+'>'+r+'</option>').join('');
+}
+
+function renderByRep(){
+  const rep=document.getElementById('br-rep').value;
+  const cont=document.getElementById('br-content');
+  if(!rep){cont.innerHTML='<div class="empty"><div class="empty-icon">👆</div>请选择一位销售人员查看汇总</div>';return;}
+
+  const stores=['悉尼','布里斯班','珀斯'];
+
+  // Gather all data for this rep
+  const spAll = salesDB.filter(r=>r.rep===rep&&r.deposit&&r.deposit.trim()&&!isSuspended(r.note));
+  const snAll = salesDB.filter(r=>r.rep===rep&&(!r.deposit||!r.deposit.trim()));
+  const rnAll = rentalDB.filter(r=>r.rep===rep);
+  const spSuspAll = salesDB.filter(r=>r.rep===rep&&r.deposit&&r.deposit.trim()&&isSuspended(r.note));
+
+  const spTot=spAll.reduce((s,r)=>s+r.bal,0);
+  const snTot=snAll.reduce((s,r)=>s+r.bal,0);
+  const rnTot=rnAll.reduce((s,r)=>s+r.bal,0);
+  const suspTot=spSuspAll.reduce((s,r)=>s+r.bal,0);
+  const grandTot=spTot+snTot+rnTot+suspTot;
+
+  let html=`
+  <div style="display:grid;grid-template-columns:repeat(4,1fr);gap:10px;margin-bottom:18px">
+    <div class="metric-card c-red"><div class="metric-label">销售应收（已收定金）</div><div class="metric-val" style="font-size:18px">${fmtAmt(spTot)}</div></div>
+    <div class="metric-card c-orange"><div class="metric-label">销售（未收定金）</div><div class="metric-val" style="font-size:18px">${fmtAmt(snTot)}</div></div>
+    <div class="metric-card c-orange"><div class="metric-label">租赁应收</div><div class="metric-val" style="font-size:18px">${fmtAmt(rnTot)}</div></div>
+    <div class="metric-card c-blue"><div class="metric-label">合计应收</div><div class="metric-val" style="font-size:18px">${fmtAmt(grandTot)}</div><div class="metric-sub">含挂起 ${fmtAmt(suspTot)}</div></div>
+  </div>`;
+
+  // Helper: render a simple table
+  const mkTable=(rows, cols)=>{
+    if(!rows.length) return '<div class="empty" style="padding:12px">— 无数据 —</div>';
+    return '<table><thead><tr>'+cols.map(c=>'<th>'+c+'</th>').join('')+'</tr></thead><tbody>'+rows+'</tbody></table>';
+  };
+
+  stores.forEach(store=>{
+    const sp=spAll.filter(r=>r.store===store).sort((a,b)=>(daysSince(b.deposit)||0)-(daysSince(a.deposit)||0));
+    const sn=snAll.filter(r=>r.store===store);
+    const rn=rnAll.filter(r=>r.store===store);
+    const spS=spSuspAll.filter(r=>r.store===store);
+
+    // Skip store if no data at all
+    if(!sp.length&&!sn.length&&!rn.length&&!spS.length) return;
+
+    const storeSpTot=sp.reduce((s,r)=>s+r.bal,0);
+    const storeSnTot=sn.reduce((s,r)=>s+r.bal,0);
+    const storeRnTot=rn.reduce((s,r)=>s+r.bal,0);
+    const storeTotal=storeSpTot+storeSnTot+storeRnTot;
+
+    const storeTag=storeBadge(store);
+    html+=`<div class="card" style="margin-bottom:16px">
+      <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px;padding-bottom:8px;border-bottom:2px solid var(--border)">
+        <div style="font-size:14px;font-weight:700;color:var(--text)">${storeTag} ${store}</div>
+        <div style="font-family:var(--mono);font-size:13px;font-weight:700;color:var(--accent)">门店合计 ${fmtAmt(storeTotal)}</div>
+      </div>`;
+
+    // Sales paid
+    if(sp.length||spS.length){
+      html+=`<div class="sec-title" style="margin-top:8px">销售单 · 已收定金</div>`;
+      const rows=[...sp,...spS].map(r=>{
+        const d=daysSince(r.deposit);
+        const susp=isSuspended(r.note);
+        return `<tr${susp?' class="suspended"':''}><td class="primary" style="font-family:var(--mono);font-size:11px">${r.inv}</td><td style="font-family:var(--mono);font-size:11px">${r.date}</td><td class="primary">${r.cust}</td><td style="font-family:var(--mono)">${fmtAmt(r.total)}</td><td style="font-family:var(--mono)">${fmtAmt(r.paid)}</td><td class="primary" style="font-family:var(--mono)">${fmtAmt(r.bal)}</td><td>${r.deposit}</td><td>${susp?'<span class="badge badge-muted">挂起</span>':ageBadge(d)}</td><td>${noteBadge(r.note)}</td></tr>`;
+      }).join('');
+      html+=mkTable(rows,['单号','开单日期','客户','总金额','已付','应收余额','收定日期','距今天数','备注']);
+      html+=`<div style="text-align:right;font-size:11px;color:var(--text2);margin:4px 0 10px;font-weight:600">小计：${fmtAmt(storeSpTot)}</div>`;
+    }
+
+    // Sales nopay
+    if(sn.length){
+      html+=`<div class="sec-title" style="margin-top:8px">销售单 · 未收定金</div>`;
+      const rows=sn.map(r=>`<tr><td class="primary" style="font-family:var(--mono);font-size:11px">${r.inv}</td><td style="font-family:var(--mono);font-size:11px">${r.date}</td><td class="primary">${r.cust}</td><td style="font-family:var(--mono)">${fmtAmt(r.total)}</td><td class="primary" style="font-family:var(--mono)">${fmtAmt(r.bal)}</td><td>${noteBadge(r.note)}</td></tr>`).join('');
+      html+=mkTable(rows,['单号','开单日期','客户','总金额','应收金额','备注']);
+      html+=`<div style="text-align:right;font-size:11px;color:var(--text2);margin:4px 0 10px;font-weight:600">小计：${fmtAmt(storeSnTot)}</div>`;
+    }
+
+    // Rental grouped by customer
+    if(rn.length){
+      html+=`<div class="sec-title" style="margin-top:8px">租赁单</div>`;
+      const groups={};
+      rn.forEach(r=>{
+        const co=r.cust.includes(' / ')?r.cust.split(' / ')[0].trim():r.cust;
+        if(!groups[co]) groups[co]=[];
+        groups[co].push(r);
+      });
+      const sortedG=Object.entries(groups).sort((a,b)=>{
+        const ma=Math.max(...a[1].map(r=>daysSince(r.date)||0));
+        const mb=Math.max(...b[1].map(r=>daysSince(r.date)||0));
+        return mb-ma;
+      });
+      let rnRows='';
+      sortedG.forEach(([co,rows])=>{
+        const coTot=rows.reduce((s,r)=>s+r.bal,0);
+        const maxD=Math.max(...rows.map(r=>daysSince(r.date)||0));
+        rnRows+=`<tr style="background:#eef3ff;border-top:1.5px solid #c7d7fa"><td colspan="2" style="font-size:10px;color:var(--text3)">共${rows.length}张</td><td style="font-weight:700;color:#1e3a8a">${co}</td><td style="font-family:var(--mono);font-weight:700;color:#1e3a8a">${fmtAmt(coTot)}</td><td>${ageBadge(maxD)}</td><td></td></tr>`;
+        rows.sort((a,b)=>(daysSince(b.date)||0)-(daysSince(a.date)||0)).forEach(r=>{
+          rnRows+=`<tr style="background:#fafbff"><td style="font-family:var(--mono);font-size:11px;padding-left:16px">↳ ${r.inv}</td><td style="font-family:var(--mono);font-size:11px">${r.date}</td><td style="font-size:11px">${r.cust}</td><td style="font-family:var(--mono);font-weight:600">${fmtAmt(r.bal)}</td><td>${ageBadge(daysSince(r.date))}</td><td>${noteBadge(r.note)}</td></tr>`;
+        });
+        if(rows.length>1) rnRows+=`<tr style="background:#e0e9ff"><td colspan="3" style="text-align:right;font-size:11px;color:#3b5bdb;font-weight:600;padding:4px 10px">小计</td><td style="font-family:var(--mono);font-weight:700;color:#1e3a8a">${fmtAmt(coTot)}</td><td colspan="2"></td></tr>`;
+      });
+      html+=mkTable(rnRows,['单号','开票日期','客户','应收金额','距今天数','备注']);
+      html+=`<div style="text-align:right;font-size:11px;color:var(--text2);margin:4px 0 10px;font-weight:600">小计：${fmtAmt(storeRnTot)}</div>`;
+    }
+
+    html+=`</div>`;
+  });
+
+  cont.innerHTML=html;
+}
+
+function exportRepPDF(){
+  const rep=document.getElementById('br-rep').value;
+  if(!rep){alert('请先选择销售人员');return;}
+  const cont=document.getElementById('br-content');
+  if(!cont||cont.querySelector('.empty')){alert('暂无数据可导出');return;}
+  const dateStr=new Date().toLocaleDateString('zh-CN',{year:'numeric',month:'long',day:'numeric'});
+  const printWin=window.open('','_blank','width=1100,height=800');
+  printWin.document.write(`<!DOCTYPE html>
+<html lang="zh-CN"><head>
+<meta charset="UTF-8">
+<title>${rep} 应收账款汇总 - ${dateStr}</title>
+<style>
+*{box-sizing:border-box;margin:0;padding:0}
+body{font-family:'Noto Sans SC','Microsoft YaHei',sans-serif;font-size:11px;color:#111827;padding:20px 24px;background:#fff}
+.header{margin-bottom:14px;border-bottom:2px solid #2563eb;padding-bottom:8px}
+.header h1{font-size:15px;font-weight:700;color:#1e3a8a}
+.header .meta{font-size:10px;color:#6b7280;margin-top:3px}
+.metric-grid{display:grid;grid-template-columns:repeat(4,1fr);gap:8px;margin-bottom:14px}
+.metric-card{border:0.5px solid #e5e7eb;border-radius:6px;padding:8px 12px;position:relative;overflow:hidden}
+.metric-card::before{content:'';position:absolute;top:0;left:0;right:0;height:2px}
+.metric-card.c-red::before{background:#dc2626}.metric-card.c-orange::before{background:#c2620a}
+.metric-card.c-blue::before{background:#2563eb}
+.metric-label{font-size:9px;font-weight:600;color:#6b7280;text-transform:uppercase;margin-bottom:4px}
+.metric-val{font-size:15px;font-weight:700;color:#111827}
+.metric-sub{font-size:9px;color:#9ca3af;margin-top:2px}
+.store-section{margin-bottom:14px;border:0.5px solid #e5e7eb;border-radius:6px;overflow:hidden}
+.store-header{display:flex;justify-content:space-between;align-items:center;padding:8px 12px;background:#f0f4ff;border-bottom:1.5px solid #c7d7fa}
+.store-name{font-size:13px;font-weight:700;color:#1e3a8a}
+.store-total{font-size:12px;font-weight:700;color:#2563eb}
+.section-title{font-size:9px;font-weight:700;color:#374151;text-transform:uppercase;letter-spacing:.5px;padding:6px 12px;background:#f9fafb;border-bottom:0.5px solid #e5e7eb}
+table{width:100%;border-collapse:collapse;font-size:10px}
+th{padding:5px 8px;font-size:9px;font-weight:700;color:#374151;border-bottom:1px solid #2563eb;background:#f0f4ff;white-space:nowrap;text-align:left}
+td{padding:4px 8px;border-bottom:0.5px solid #f3f4f6;vertical-align:middle;color:#374151}
+td.primary{color:#111827;font-weight:600}
+.subtotal{text-align:right;font-size:10px;font-weight:700;color:#374151;padding:4px 12px 6px;background:#f9fafb}
+.badge{display:inline-block;padding:1px 5px;border-radius:3px;font-size:8px;font-weight:700}
+.badge-red{background:#fee2e2;color:#b91c1c}.badge-orange{background:#ffedd5;color:#9a3412}
+.badge-green{background:#dcfce7;color:#15803d}.badge-gray{background:#f1f5f9;color:#374151}
+.badge-blue{background:#dbeafe;color:#1d4ed8}.badge-purple{background:#ede9fe;color:#6d28d9}
+.badge-muted{background:#f1f5f9;color:#9ca3af;text-decoration:line-through}
+.store-tag{display:inline-block;padding:1px 5px;border-radius:3px;font-size:8px;font-weight:700}
+.syd{background:#dbeafe;color:#1d4ed8}.per{background:#ede9fe;color:#6d28d9}.bne{background:#ffedd5;color:#9a3412}
+tr.suspended td{opacity:.4;text-decoration:line-through}
+tr[style*="eef3ff"]{background:#eef3ff!important}
+tr[style*="fafbff"]{background:#fafbff!important}
+tr[style*="e0e9ff"]{background:#e0e9ff!important}
+.footer{margin-top:12px;font-size:9px;color:#9ca3af;text-align:right;border-top:0.5px solid #e5e7eb;padding-top:6px}
+@media print{body{padding:8px 12px}@page{margin:8mm 10mm;size:A4 landscape}}
+</style>
+</head><body>
+<div class="header">
+  <h1>应收账款汇总 · ${rep}</h1>
+  <div class="meta">导出时间：${dateStr} &nbsp;|&nbsp; 数据来源：应收账款周报系统</div>
+</div>
+${cont.innerHTML}
+<div class="footer">AR Weekly Report · ${rep} · ${dateStr}</div>
+<script>window.onload=function(){window.print();}<\/script>
+</body></html>`);
+  printWin.document.close();
+}
 function exportPDF(tableId, title) {
   const tableEl = document.getElementById(tableId);
   if(!tableEl || !tableEl.querySelector('table')) {
